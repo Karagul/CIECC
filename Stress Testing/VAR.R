@@ -12,8 +12,8 @@ library(sqldf)
 library(TSA)
 library(forecast)
 # 合并数据、数据预处理
-# setwd("C:/Users/Administrator/Desktop/宏观组/")
-setwd("E:/graduate/实习求职/CICCE实习/")
+setwd("C:/Users/Administrator/Desktop/宏观组/")
+# setwd("E:/graduate/实习求职/CICCE实习/")
 seasonGDP = read.csv("数据挖掘/宏观经济预判/宏观/季度GDP.csv")
 head(seasonGDP)
 dim(seasonGDP)
@@ -26,6 +26,10 @@ data = sqldf('select year,quarter,avg(REAL_RATE) as REAL_RATE_Q,sum(REAL_EX) as 
 dim(data)
 data = merge(data,seasonGDP,by=c("year","quarter"),all=FALSE)
 head(data)
+plot(ts(data["REAL_RATE_Q"],start=c(1995,1),frequency = 4),ylab="实际汇率")#实际汇率
+
+exrate = ts(as.double(data[,"REAL_RATE_Q"]),start=c(1995,1),frequency = 4)
+plot(stl(exrate,"per"),main="stl分解")
 
 data1 = data[,c("REAL_RATE_Q","REAL_EX_Q","REAL_IM_Q","REAL_GDP")]
 plot(ts(data1,start=c(1995,1),frequency = 4))
@@ -36,7 +40,7 @@ data2 = sqldf("select log(REAL_RATE_Q) as LNEXRATE,
                       log(REAL_IM_Q) as LNIMPORT,
                       log(REAL_GDP) as LNGDP from data1" )
 plot(ts(data2,start=c(1995,1),frequency = 4))
-
+plot(ts(data2["LNEXRATE"],start=c(1995,1),frequency = 4))#对数实际汇率
 
 #相关系数
 r = cor(na.omit(data2))
@@ -139,8 +143,9 @@ fanchart(zp)
 
 # 压力测试
 # 把未来一期的压力因素的预测值改成压力值，其他变量用预测值
+var_model = var.2c
 name = "LNEXRATE"
-value = 6.3596
+value = 6.0748
 
 press_test(name,value,data2,press = T)
 
@@ -153,7 +158,7 @@ inv_diff = function(diff_series)
   {
     origin[i] = diff_series[i]+origin[i-1]
   }
-  return(origin[-1])
+  return(origin)
 }
 
 
@@ -184,7 +189,7 @@ press_test = function(name,value,data2,press=T){
     
     #再预测:感觉不能重新估计模型，而要用回原来的模型
     var.press = VAR(hstry , p = 4, type = "both",season=4)
-    pre.press=predict(var.press,n.ahead = 1,ci = 0.95)
+    pre.press=predict(var.press,n.ahead =20,ci = 0.95)
     plot(pre.press)
     print(pre.press$fcst)
     #把预测值还原,逆差分，取指数
@@ -195,7 +200,6 @@ press_test = function(name,value,data2,press=T){
 
     wait_trans = rbind(last,pre.press_value)
     trans = data.frame(exp(apply(wait_trans,2,inv_diff)))
-    return(trans)
 
   }
   if(press==F){
